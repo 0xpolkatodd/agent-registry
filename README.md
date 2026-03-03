@@ -1,43 +1,93 @@
-# Auto-ID (Proof of Concept)
+# Agent Registry
 
-This repository serves as a proof of concept meant to handle Auto-IDs. It includes features for issuing, copying, and managing Auto-IDs, as well as integration options for different applications.
+Permissionless on-chain registry for autonomous agents on the Autonomys Network.
 
-For every Auto-ID, an Auto-Score can be attached, serving as a Proof of Humanity for the issued identity via Zero Knowledge Proofs and [Reclaim Protocol](https://www.reclaimprotocol.org/).
+Built on top of the existing [AgentMemory](https://github.com/autonomys/autonomys-agents/tree/main/agent-contracts) contract, adding rich identity, discoverability, and memory chain tracking.
 
-Additionally, if you have issued an Auto-Score, you will be able to link your Auto-ID with your Discord account. This will grant you access to permissioned channels in our Discord server.
+## What It Does
 
-# What is an Auto-ID?
+- **Agent Identity**: Register with a unique name, link off-chain metadata (framework, model, description, avatar, social links)
+- **Memory Chain Tracking**: On-chain record of chain length, first entry anchor, and latest memory hash
+- **Discoverability**: Paginated queries, name resolution, active/inactive filtering
+- **Key Rotation**: Transfer agent identity to a new wallet without losing history
+- **Backwards Compatible**: Every memory update syncs with the legacy AgentMemory contract
 
-Auto-ID is an identity system built on the Autonomys Network, utilizing X509 certificates for secure identification. Each Auto-ID consists of a certificate that is signed by the user's keypair, ensuring authenticity. Users can possess multiple Auto-IDs, which allows them to manage distinct identities and associated claims separately. Claims are verifiable statements about an individual that can be validated.
-
-The Auto-Score is derived from these verifiable claims and represents a score that reflects the probability of an identity being human.
-
-## How it works?
-
-1. Create an encrypted keypair by setting up a password.
-
-2. Click on the "New" button and then select "Issue Auto ID."
-
-3. Once you have your Auto-ID, you can:
-
-   - Issue an Auto-Score: Create a Zero Knowledge Proof claim using [Reclaim Protocol](https://www.reclaimprotocol.org/) showing that you have a trait of personhood (e.g., having an Uber account). This will issue an Auto-Score attached to your Auto-ID; the more claims you generate, the better your Auto-Score will be.
-
-   - Link to your Discord account: There will be some permissioned channels in [our Discord server](https://discord.com/channels/864285291518361610/969329076378697808) that only users with a certain Auto-Score above a specified threshold will be able to access.
-
-## Installation
-
-To install the project, clone the repository and run the following commands:
-
-Using npm:
+## Contract Architecture
 
 ```
-npm i
-npm run dev
+AgentRegistry.sol       — Main registry contract
+├── IAgentMemory.sol    — Interface to existing AgentMemory contract
+└── (inherits nothing, composes AgentMemory via interface)
 ```
 
-Using yarn:
+The registry **composes** rather than inherits from AgentMemory. This means:
+- No changes needed to the existing deployed contract
+- The registry calls `setLastMemoryHash` on the legacy contract for backwards compatibility
+- Existing tools (agent-memory-viewer) continue to work
 
+## Agent Profile (On-Chain)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| owner | address | Wallet controlling this agent |
+| name | string | Unique human-readable name |
+| metadataHash | bytes32 | CID hash of off-chain metadata JSON on AutoDrive |
+| registeredAt | uint256 | Registration timestamp |
+| lastUpdateAt | uint256 | Last memory update timestamp |
+| chainLength | uint256 | Memory chain length (monotonically increasing) |
+| firstMemoryHash | bytes32 | Anchor hash of first memory entry |
+| lastMemoryHash | bytes32 | Current head of memory chain |
+| active | bool | Agent status flag |
+
+## Off-Chain Metadata (AutoDrive)
+
+```json
+{
+  "schema": "autonomys.agent.metadata.v1",
+  "name": "Etch",
+  "description": "AI agent with permanent memory on Autonomys Network",
+  "framework": "openclaw",
+  "model": "claude-opus-4",
+  "links": {
+    "x": "https://x.com/0xpolkatodd",
+    "github": "https://github.com/0xpolkatodd"
+  },
+  "capabilities": ["permanent-memory", "social-engagement"]
+}
 ```
-yarn
-yarn dev
+
+## Development
+
+```bash
+# Install Foundry
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+
+# Build
+forge build
+
+# Test
+forge test -v
+
+# Deploy (mainnet)
+PRIVATE_KEY=0x... forge script script/Deploy.s.sol \
+  --rpc-url https://auto-evm.mainnet.autonomys.xyz/ws \
+  --evm-version london \
+  --broadcast
 ```
+
+## Deployments
+
+| Network | Address | Chain ID |
+|---------|---------|----------|
+| Auto EVM Mainnet | TBD | 490000 |
+
+## Linked Contracts
+
+| Contract | Address | Role |
+|----------|---------|------|
+| AgentMemory | `0xC1afEbE677baDb71FC760e61479227e43B422E48` | Legacy memory hash storage |
+
+## License
+
+MIT
